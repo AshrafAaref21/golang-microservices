@@ -2,36 +2,54 @@ package main
 
 import (
 	"context"
-	"ride-sharing/services/trip-service/internal/domain"
+	"log"
+	"net"
+	"os"
+	"os/signal"
+	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
-	"time"
+	"syscall"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	grpcserver "google.golang.org/grpc"
 )
 
+var GrpcAddr = ":9083"
+
 func main() {
-	ctx := context.Background()
 
 	inmemoryRepo := repository.NewInMemoryTripRepository()
 	service := service.NewTripService(inmemoryRepo)
 
-	// Example usage
-	fare := &domain.RideFareModel{
-		ID:                primitive.NewObjectID(),
-		UserID:            "user123",
-		PackageSlug:       "van",
-		TotalPriceInCents: 150.8,
-		ExpiresAt:         time.Now().Add(30 * time.Minute),
-	}
-	trip, err := service.CreateTrip(ctx, fare)
-	if err != nil {
-		panic(err)
-	}
-	println("Created trip with ID:", trip.ID.Hex())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// make it run forever
-	for {
-		time.Sleep(3 * time.Second)
+	go func() {
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+		<-signalChan
+		log.Println("Received interrupt signal, shutting down...")
+		cancel()
+	}()
+
+	lis, err := net.Listen("tcp", GrpcAddr)
+	if err != nil {
+		log.Fatalf("Failed to listen on %s: %v", GrpcAddr, err)
 	}
+
+	grpcServer := grpcserver.NewServer()
+	grpc.NewGrpcHandler(grpcServer, service)
+
+	log.Printf("Trip Service gRPC server is running on %s", GrpcAddr)
+
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve gRPC server: %v", err)
+			cancel()
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down gRPC server...")
+	grpcServer.GracefulStop()
 }

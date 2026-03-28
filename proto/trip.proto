@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package trip;
+
+option go_package = "shared/proto/trip;trip";
+
+// TripService exposes trip-related operations used by API gateway and clients.
+service TripService {
+  // PreviewTrip calculates route details and fare options before trip creation.
+  rpc PreviewTrip(PreviewTripRequest) returns (PreviewTripResponse);
+}
+
+// PreviewTripRequest contains the rider and locations used for fare preview.
+message PreviewTripRequest {
+    string user_id = 1;
+    Coordinate start_location = 2;
+    Coordinate end_location = 3;
+
+}
+
+// PreviewTripResponse returns generated identifiers, route data, and fare options.
+message PreviewTripResponse {
+    string trip_id = 1;
+    Route route = 2;
+    repeated RideFare ride_fares = 3;
+}
+
+
+// Coordinate represents a geographic position in decimal degrees.
+message Coordinate {
+    double latitude = 1;
+    double longitude = 2;
+}
+
+// Route stores polyline geometry and aggregate travel metrics.
+message Route {
+    repeated Geometry geometry = 1;
+    double distance = 2;
+    double duration = 3;
+}
+
+// RideFare contains the fare estimate for one ride package.
+message RideFare {
+    string id = 1;
+    string user_id = 2;
+    string package_slug = 3;
+    double total_price_in_cents = 4;
+}
+
+// Geometry is a sequence of coordinates that forms a segment of the full route.
+message Geometry {
+    repeated Coordinate coordinates = 1;
+}
