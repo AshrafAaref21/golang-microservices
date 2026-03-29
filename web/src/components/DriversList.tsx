@@ -1,9 +1,9 @@
-import { Button } from "./ui/button"
 import { Clock } from 'lucide-react'
+import { cn } from "../lib/utils"
 import { RouteFare, TripPreview } from '../types'
 import { convertMetersToKilometers, convertSecondsToMinutes } from "../utils/math"
-import { cn } from "../lib/utils"
 import { PackagesMeta } from "./PackagesMeta"
+import { Button } from "./ui/button"
 
 interface DriverListProps {
   trip: TripPreview | null;
@@ -24,7 +24,7 @@ export function DriverList({ trip, onPackageSelect, onCancel }: DriverListProps)
         </div>
         <div className="space-y-4">
           {trip?.rideFares.map((fare) => {
-            const Icon = PackagesMeta[fare.packageSlug].icon;
+            const Icon = PackagesMeta[fare.packageSlug]?.icon;
             const price = fare.totalPriceInCents && `$${(fare.totalPriceInCents / 100).toFixed(2)}`
 
             return (

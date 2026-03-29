@@ -18,7 +18,7 @@ var GrpcAddr = ":9083"
 
 func main() {
 
-	inmemoryRepo := repository.NewInMemoryTripRepository()
+	inmemoryRepo := repository.NewinMemoryRepository()
 	service := service.NewTripService(inmemoryRepo)
 
 	ctx, cancel := context.WithCancel(context.Background())

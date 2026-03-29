@@ -1,18 +1,18 @@
 'use client';
 
-import Image from 'next/image';
-import { useRiderStreamConnection } from '../hooks/useRiderStreamConnection';
-import { MapContainer, Marker, Popup, Rectangle, TileLayer } from 'react-leaflet'
 import L from 'leaflet';
-import { getGeohashBounds } from '../utils/geohash';
+import Image from 'next/image';
 import { useMemo, useRef, useState } from 'react';
-import { MapClickHandler } from './MapClickHandler';
-import { Button } from './ui/button';
-import { RouteFare, RequestRideProps, TripPreview, HTTPTripStartResponse } from "../types";
-import { RoutingControl } from "./RoutingControl";
+import { MapContainer, Marker, Popup, Rectangle, TileLayer } from 'react-leaflet';
 import { API_URL } from '../constants';
-import { RiderTripOverview } from './RiderTripOverview';
 import { BackendEndpoints, HTTPTripPreviewRequestPayload, HTTPTripPreviewResponse, HTTPTripStartRequestPayload } from '../contracts';
+import { useRiderStreamConnection } from '../hooks/useRiderStreamConnection';
+import { HTTPTripStartResponse, RequestRideProps, RouteFare, TripPreview } from "../types";
+import { getGeohashBounds } from '../utils/geohash';
+import { MapClickHandler } from './MapClickHandler';
+import { RiderTripOverview } from './RiderTripOverview';
+import { RoutingControl } from "./RoutingControl";
+import { Button } from './ui/button';
 
 const userMarker = new L.Icon({
     iconUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Map_pin_icon.svg/176px-Map_pin_icon.svg.png",

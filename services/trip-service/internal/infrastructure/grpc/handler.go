@@ -39,11 +39,41 @@ func (h *grpcHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 	t, err := h.service.GetRoute(ctx, pickupCoord, destinationCoord)
 	if err != nil {
 		log.Printf("Error getting route: %v", err)
-		return nil, status.Error(codes.Internal, "err.Error()xxxxxx")
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	estimatedFares := h.service.EstimatePackagesPriceWithRoute(t)
+	log.Printf("Estimated fares: %+v", estimatedFares)
+
+	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, req.GetUserID())
+	if err != nil {
+		log.Printf("Error generating trip fares: %v", err)
+		return nil, status.Error(codes.Internal, "failed to generate trip fares")
 	}
 
 	return &pb.PreviewTripResponse{
 		Route:     t.ToProto(),
-		RideFares: []*pb.RideFare{},
+		RideFares: domain.ToRideFaresProto(fares),
+	}, nil
+}
+
+func (h *grpcHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest) (*pb.CreateTripResponse, error) {
+	fareID := req.GetRideFareID()
+	userID := req.GetUserID()
+
+	rideFare, err := h.service.GetAndValidateFare(ctx, fareID, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to validate the fare: %v", err)
+	}
+
+	trip, err := h.service.CreateTrip(ctx, rideFare)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create the trip: %v", err)
+	}
+
+	// TODO: Add a comment at the end of the function to publish an event on the Async Comms module.
+
+	return &pb.CreateTripResponse{
+		TripID: trip.ID.Hex(),
 	}, nil
 }
