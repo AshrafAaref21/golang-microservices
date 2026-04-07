@@ -45,7 +45,7 @@ func (h *grpcHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 	estimatedFares := h.service.EstimatePackagesPriceWithRoute(t)
 	log.Printf("Estimated fares: %+v", estimatedFares)
 
-	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, req.GetUserID())
+	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, req.GetUserID(), t)
 	if err != nil {
 		log.Printf("Error generating trip fares: %v", err)
 		return nil, status.Error(codes.Internal, "failed to generate trip fares")
