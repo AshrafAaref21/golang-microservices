@@ -1,6 +1,7 @@
 package messaging
 
 import (
+	"context"
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -8,7 +9,7 @@ import (
 
 type RabbitMQ struct {
 	conn    *amqp.Connection
-	channel *amqp.Channel
+	Channel *amqp.Channel
 }
 
 func NewRabbitMQ(url string) (*RabbitMQ, error) {
@@ -23,12 +24,12 @@ func NewRabbitMQ(url string) (*RabbitMQ, error) {
 		return nil, fmt.Errorf("failed to open a channel: %w", err)
 	}
 
-	return &RabbitMQ{conn: conn, channel: ch}, nil
+	return &RabbitMQ{conn: conn, Channel: ch}, nil
 }
 
 func (r *RabbitMQ) SetupExchangesAndQueues() error {
 	// Example: Declare an exchange and a queue, and bind them
-	err := r.channel.ExchangeDeclare(
+	err := r.Channel.ExchangeDeclare(
 		"trip_events", // name
 		"fanout",      // type
 		true,          // durable
@@ -41,7 +42,7 @@ func (r *RabbitMQ) SetupExchangesAndQueues() error {
 		return fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
-	queue, err := r.channel.QueueDeclare(
+	queue, err := r.Channel.QueueDeclare(
 		"trip_events_queue", // name
 		true,                // durable
 		false,               // delete when unused
@@ -54,7 +55,7 @@ func (r *RabbitMQ) SetupExchangesAndQueues() error {
 		return fmt.Errorf("failed to declare queue: %w", err)
 	}
 
-	err = r.channel.QueueBind(
+	err = r.Channel.QueueBind(
 		queue.Name,    // queue name
 		"",            // routing key
 		"trip_events", // exchange
@@ -68,14 +69,29 @@ func (r *RabbitMQ) SetupExchangesAndQueues() error {
 	return nil
 }
 
+func (r *RabbitMQ) Publish(ctx context.Context, exchange, routingKey string, body []byte) error {
+	return r.Channel.PublishWithContext(
+		ctx,
+		exchange,   // exchange
+		routingKey, // routing key
+		false,      // mandatory
+		false,      // immediate
+		amqp.Publishing{
+			ContentType:  "text/plain",
+			Body:         body,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+}
+
 func (r *RabbitMQ) Close() error {
 	if r.conn != nil {
 		if err := r.conn.Close(); err != nil {
 			return fmt.Errorf("failed to close RabbitMQ connection: %w", err)
 		}
 	}
-	if r.channel != nil {
-		if err := r.channel.Close(); err != nil {
+	if r.Channel != nil {
+		if err := r.Channel.Close(); err != nil {
 			return fmt.Errorf("failed to close RabbitMQ channel: %w", err)
 		}
 	}

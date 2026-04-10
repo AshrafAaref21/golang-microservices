@@ -1,8 +1,9 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: rabbitmq
 spec:
+  serviceName: "rabbitmq"
   replicas: 1
   selector:
     matchLabels:
@@ -16,21 +17,21 @@ spec:
         - name: rabbitmq
           image: rabbitmq:3-management
           ports:
-            - containerPort: 5672
-            - containerPort: 15672
-          # readinessProbe:
-          #   exec:
-          #     command: ["rabbitmq-diagnostics", "check_running"]
-          #   initialDelaySeconds: 10
-          #   periodSeconds: 10
-          #   timeoutSeconds: 5
-          #   failureThreshold: 3
-          # livenessProbe:
-          #   exec:
-          #     command: ["rabbitmq-diagnostics", "check_running"]
-          #   initialDelaySeconds: 40
-          #   periodSeconds: 20
-          #   timeoutSeconds: 10
+            - containerPort: 5672 # AMQP port
+            - containerPort: 15672 # Management UI port
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests:
               memory: "512Mi"
@@ -49,7 +50,11 @@ spec:
                 secretKeyRef:
                   name: rabbitmq-credentials
                   key: password
+            - name: RABBITMQ_MNESIA_BASE
+              value: /var/lib/rabbitmq/mnesia
           volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
             - name: rabbitmq-config
               mountPath: /etc/rabbitmq/conf.d/20-custom.conf
               subPath: rabbitmq.conf
@@ -57,6 +62,14 @@ spec:
         - name: rabbitmq-config
           configMap:
             name: rabbitmq-config
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
 ---
 apiVersion: v1
 kind: Service

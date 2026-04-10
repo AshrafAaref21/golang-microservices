@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"ride-sharing/services/trip-service/internal/infrastructure/events"
 	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
@@ -45,9 +46,16 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 	defer rabbitmq.Close()
+	err = rabbitmq.SetupExchangesAndQueues()
+	if err != nil {
+		log.Fatalf("Failed to set up RabbitMQ exchanges and queues: %v", err)
+	}
+	log.Printf("Connected to RabbitMQ at %s", rabbitMqURI)
+
+	eventPublisher := events.NewTripEventPublisher(rabbitmq)
 
 	grpcServer := grpcserver.NewServer()
-	grpc.NewGrpcHandler(grpcServer, service)
+	grpc.NewGrpcHandler(grpcServer, service, eventPublisher)
 
 	log.Printf("Trip Service gRPC server is running on %s", GrpcAddr)
 

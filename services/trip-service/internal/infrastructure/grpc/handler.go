@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"ride-sharing/services/trip-service/internal/domain"
+	"ride-sharing/services/trip-service/internal/infrastructure/events"
 	pb "ride-sharing/shared/proto/trip"
 	"ride-sharing/shared/types"
 
@@ -14,11 +15,12 @@ import (
 
 type grpcHandler struct {
 	pb.UnimplementedTripServiceServer
-	service domain.TripService
+	service        domain.TripService
+	eventPublisher *events.TripEventPublisher
 }
 
-func NewGrpcHandler(server *grpc.Server, service domain.TripService) *grpcHandler {
-	handler := &grpcHandler{service: service}
+func NewGrpcHandler(server *grpc.Server, service domain.TripService, eventPublisher *events.TripEventPublisher) *grpcHandler {
+	handler := &grpcHandler{service: service, eventPublisher: eventPublisher}
 	pb.RegisterTripServiceServer(server, handler)
 	return handler
 }
@@ -36,7 +38,7 @@ func (h *grpcHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 		Longitude: destination.GetLongitude(),
 	}
 
-	t, err := h.service.GetRoute(ctx, pickupCoord, destinationCoord)
+	t, err := h.service.GetRoute(ctx, pickupCoord, destinationCoord, false) // Set to false to use mock response for development
 	if err != nil {
 		log.Printf("Error getting route: %v", err)
 		return nil, status.Error(codes.Internal, err.Error())
@@ -71,7 +73,10 @@ func (h *grpcHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 		return nil, status.Errorf(codes.Internal, "failed to create the trip: %v", err)
 	}
 
-	// TODO: Add a comment at the end of the function to publish an event on the Async Comms module.
+	// Publish an event on the Async Comms module.
+	if err := h.eventPublisher.PublishTripCreatedEvent(ctx); err != nil {
+		log.Printf("Error publishing trip created event: %v", err)
+	}
 
 	return &pb.CreateTripResponse{
 		TripID: trip.ID.Hex(),

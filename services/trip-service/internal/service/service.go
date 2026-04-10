@@ -41,12 +41,38 @@ func (s *tripService) CreateTrip(ctx context.Context, fare *domain.RideFareModel
 	return trip, nil
 }
 
-func (s *tripService) GetRoute(ctx context.Context, pickup, destination *shared_types.Coordinate) (*types.OsrmApiResponse, error) {
+func (s *tripService) GetRoute(ctx context.Context, pickup, destination *shared_types.Coordinate, useOSRMApi bool) (*types.OsrmApiResponse, error) {
+	if !useOSRMApi {
+		// Return a simple mock response in case we don't want to rely on an external API
+		return &types.OsrmApiResponse{
+			Routes: []struct {
+				Distance float64 `json:"distance"`
+				Duration float64 `json:"duration"`
+				Geometry struct {
+					Coordinates [][]float64 `json:"coordinates"`
+				} `json:"geometry"`
+			}{
+				{
+					Distance: 5.0, // 5km
+					Duration: 600, // 10 minutes
+					Geometry: struct {
+						Coordinates [][]float64 `json:"coordinates"`
+					}{
+						Coordinates: [][]float64{
+							{pickup.Latitude, pickup.Longitude},
+							{destination.Latitude, destination.Longitude},
+						},
+					},
+				},
+			},
+		}, nil
+	}
 	url := fmt.Sprintf(
 		"http://router.project-osrm.org/route/v1/driving/%f,%f;%f,%f?overview=full&geometries=geojson",
 		pickup.Longitude, pickup.Latitude,
 		destination.Longitude, destination.Latitude,
 	)
+	fmt.Printf("Fetching route from OSRM API: %s\n", url)
 
 	resp, err := http.Get(url)
 	if err != nil {
