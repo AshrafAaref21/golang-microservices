@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"ride-sharing/shared/contracts"
@@ -90,7 +91,12 @@ func (r *RabbitMQ) declareAndBindQueue(queueName, exchangeName string, messageTy
 	return nil
 }
 
-func (r *RabbitMQ) Publish(ctx context.Context, exchange, routingKey string, body []byte) error {
+func (r *RabbitMQ) Publish(ctx context.Context, exchange, routingKey string, msg contracts.AmqpMessage) error {
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
 	return r.Channel.PublishWithContext(
 		ctx,
 		exchange,   // exchange

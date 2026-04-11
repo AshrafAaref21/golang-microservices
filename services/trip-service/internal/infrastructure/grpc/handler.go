@@ -74,7 +74,7 @@ func (h *grpcHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 	}
 
 	// Publish an event on the Async Comms module.
-	if err := h.eventPublisher.PublishTripCreatedEvent(ctx); err != nil {
+	if err := h.eventPublisher.PublishTripCreated(ctx, trip); err != nil {
 		log.Printf("Error publishing trip created event: %v", err)
 	}
 
