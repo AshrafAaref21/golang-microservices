@@ -3,99 +3,128 @@ package main
 import (
 	"log"
 	"net/http"
+	"ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
-	"ride-sharing/shared/util"
-
-	"github.com/gorilla/websocket"
+	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/proto/driver"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
+var (
+	connManager = messaging.NewConnectionManager()
+)
 
-func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+func handleRidersWebSocket(w http.ResponseWriter, r *http.Request, rb *messaging.RabbitMQ) {
+	conn, err := connManager.Upgrade(w, r)
 	if err != nil {
-		http.Error(w, "Failed to upgrade to WebSocket", http.StatusInternalServerError)
+		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
+
 	defer conn.Close()
 
 	userID := r.URL.Query().Get("userID")
 	if userID == "" {
-		http.Error(w, "Missing userID query parameter", http.StatusBadRequest)
+		log.Println("No user ID provided")
 		return
 	}
 
-	log.Printf("Rider %s connected via WebSocket", userID)
+	// Add connection to manager
+	connManager.Add(userID, conn)
+	defer connManager.Remove(userID)
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("Error reading message from rider %s: %v", userID, err)
+			log.Printf("Error reading message: %v", err)
 			break
 		}
-		log.Printf("Received message from rider %s: %s", userID, string(message))
-	}
 
+		log.Printf("Received message: %s", message)
+	}
 }
 
-func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+func handleDriversWebSocket(w http.ResponseWriter, r *http.Request, rb *messaging.RabbitMQ) {
+	conn, err := connManager.Upgrade(w, r)
 	if err != nil {
-		http.Error(w, "Failed to upgrade to WebSocket", http.StatusInternalServerError)
+		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
+
 	defer conn.Close()
 
 	userID := r.URL.Query().Get("userID")
 	if userID == "" {
-		http.Error(w, "Missing userID query parameter", http.StatusBadRequest)
+		log.Println("No user ID provided")
 		return
 	}
 
 	packageSlug := r.URL.Query().Get("packageSlug")
 	if packageSlug == "" {
-		http.Error(w, "Missing packageSlug query parameter", http.StatusBadRequest)
+		log.Println("No package slug provided")
 		return
 	}
 
-	log.Printf("Driver %s connected via WebSocket for package %s", userID, packageSlug)
+	// Add connection to manager
+	connManager.Add(userID, conn)
 
-	type Driver struct {
-		ID             string `json:"id"`
-		Name           string `json:"name"`
-		ProfilePicture string `json:"profilePicture"`
-		CarPlate       string `json:"carPlate"`
-		PackageSlug    string `json:"packageSlug"`
+	ctx := r.Context()
+
+	driverService, err := grpc_clients.NewDriverServiceClient()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	msg := contracts.WSMessage{
-		Type: "driver.cmd.register",
-		Data: Driver{
-			ID:             userID,
-			Name:           "Driver Name",
-			ProfilePicture: util.GetRandomAvatar(1),
-			CarPlate:       "Car Plate",
-			PackageSlug:    packageSlug,
-		},
-	}
+	// Closing connections
+	defer func() {
+		connManager.Remove(userID)
 
-	if err := conn.WriteJSON(msg); err != nil {
-		log.Printf("Error sending initial data to driver %s: %v", userID, err)
+		driverService.Client.UnregisterDriver(ctx, &driver.RegisterDriverRequest{
+			DriverID:    userID,
+			PackageSlug: packageSlug,
+		})
+
+		driverService.Close()
+
+		log.Println("Driver unregistered: ", userID)
+	}()
+
+	driverData, err := driverService.Client.RegisterDriver(ctx, &driver.RegisterDriverRequest{
+		DriverID:    userID,
+		PackageSlug: packageSlug,
+	})
+	if err != nil {
+		log.Printf("Error registering driver: %v", err)
 		return
+	}
+
+	if err := connManager.SendMessage(userID, contracts.WSMessage{
+		Type: contracts.DriverCmdRegister,
+		Data: driverData.Driver,
+	}); err != nil {
+		log.Printf("Error sending message: %v", err)
+		return
+	}
+
+	queues := []string{
+		messaging.DriverCmdTripRequestQueue,
+	}
+
+	for _, queue := range queues {
+		consumer := messaging.NewQueueConsumer(rb, connManager, queue)
+		if err := consumer.Start(); err != nil {
+			log.Printf("Error starting consumer for queue %s: %v", queue, err)
+			return
+		}
+
 	}
 
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("Error reading message from driver %s: %v", userID, err)
+			log.Printf("Error reading message: %v", err)
 			break
 		}
-		log.Printf("Received message from driver %s: %s", userID, string(message))
+
+		log.Printf("Received message: %s", message)
 	}
 }
