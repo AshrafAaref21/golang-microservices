@@ -10,6 +10,7 @@ import (
 	"ride-sharing/services/trip-service/pkg/types"
 	shared_types "ride-sharing/shared/types"
 
+	pbd "ride-sharing/shared/proto/driver"
 	pb "ride-sharing/shared/proto/trip"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -179,4 +180,12 @@ func (s *tripService) GetAndValidateFare(ctx context.Context, fareID, userID str
 	}
 
 	return fare, nil
+}
+
+func (s *tripService) GetTripByID(ctx context.Context, id string) (*domain.TripModel, error) {
+	return s.repo.GetTripByID(ctx, id)
+}
+
+func (s *tripService) UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error {
+	return s.repo.UpdateTrip(ctx, tripID, status, driver)
 }

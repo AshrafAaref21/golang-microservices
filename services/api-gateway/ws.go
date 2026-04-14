@@ -35,6 +35,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request, rb *messaging
 
 	queues := []string{
 		messaging.NotifyDriverNotFoundQueue,
+		messaging.NotifyDriverAssignQueue,
 	}
 
 	for _, queue := range queues {

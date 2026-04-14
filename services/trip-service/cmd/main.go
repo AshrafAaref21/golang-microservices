@@ -46,13 +46,18 @@ func main() {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
 	defer rabbitmq.Close()
-	err = rabbitmq.SetupExchangesAndQueues()
-	if err != nil {
-		log.Fatalf("Failed to set up RabbitMQ exchanges and queues: %v", err)
-	}
+
 	log.Printf("Connected to RabbitMQ at %s", rabbitMqURI)
 
 	eventPublisher := events.NewTripEventPublisher(rabbitmq)
+	driverConsumer := events.NewDriverConsumer(rabbitmq, service)
+
+	go func() {
+		if err := driverConsumer.Listen(); err != nil {
+			log.Printf("Failed to start driver consumer: %v", err)
+			cancel()
+		}
+	}()
 
 	grpcServer := grpcserver.NewServer()
 	grpc.NewGrpcHandler(grpcServer, service, eventPublisher)

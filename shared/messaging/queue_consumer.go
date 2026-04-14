@@ -60,8 +60,6 @@ func (qc *QueueConsumer) Start() error {
 
 			if err := qc.connMgr.SendMessage(userID, clientMsg); err != nil {
 				log.Printf("Failed to send message to user %s: %v", userID, err)
-			} else {
-				msg.Ack(false)
 			}
 		}
 	}()
