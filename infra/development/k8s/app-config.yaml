@@ -5,6 +5,8 @@ metadata:
 data:
   ENVIRONMENT: "development"
   GATEWAY_HTTP_ADDR: ":8081"
+  STRIPE_SUCCESS_URL: "http://localhost:3000?payment=success"
+  STRIPE_CANCEL_URL: "http://localhost:3000?payment=cancel"
 ---
 apiVersion: v1
 kind: ConfigMap
