@@ -59,6 +59,9 @@ func main() {
 		}
 	}()
 
+	paymentConsumer := events.NewPaymentConsumer(rabbitmq, service)
+	go paymentConsumer.Listen()
+
 	grpcServer := grpcserver.NewServer()
 	grpc.NewGrpcHandler(grpcServer, service, eventPublisher)
 
