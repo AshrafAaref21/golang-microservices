@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Config struct {
@@ -64,4 +65,8 @@ func setupTracerProvider(config Config, exporter sdktrace.SpanExporter) (*sdktra
 	)
 
 	return traceProvider, nil
+}
+
+func GetTracer(serviceName string) trace.Tracer {
+	return otel.Tracer(serviceName)
 }
