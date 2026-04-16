@@ -9,11 +9,17 @@ require (
 
 require (
 	github.com/google/uuid v1.6.0
-	go.opentelemetry.io/otel v1.34.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
+	go.opentelemetry.io/otel v1.34.0
+	go.opentelemetry.io/otel/sdk v1.34.0
 )
 
-require github.com/stretchr/testify v1.10.0 // indirect
+require (
+	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/otel/metric v1.34.0 // indirect
+	go.opentelemetry.io/otel/trace v1.34.0 // indirect
+)
 
 require github.com/stripe/stripe-go/v81 v81.3.1
 
@@ -27,4 +33,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 )
 
-require go.mongodb.org/mongo-driver v1.13.1
+require (
+	go.mongodb.org/mongo-driver v1.13.1
+	go.opentelemetry.io/otel/exporters/jaeger v1.17.0
+)
