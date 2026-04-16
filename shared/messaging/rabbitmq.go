@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"ride-sharing/shared/contracts"
+	"ride-sharing/shared/tracing"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -165,16 +166,26 @@ func (r *RabbitMQ) Publish(ctx context.Context, exchange, routingKey string, msg
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	return r.Channel.PublishWithContext(
+	publishing := amqp.Publishing{
+		ContentType:  "text/plain",
+		Body:         body,
+		DeliveryMode: amqp.Persistent,
+	}
+
+	return tracing.TracedPublisher(
 		ctx,
-		exchange,   // exchange
-		routingKey, // routing key
-		false,      // mandatory
-		false,      // immediate
-		amqp.Publishing{
-			ContentType:  "text/plain",
-			Body:         body,
-			DeliveryMode: amqp.Persistent,
+		exchange,
+		routingKey,
+		publishing,
+		func(publishCtx context.Context, publishExchange, publishRoutingKey string, publishMsg amqp.Publishing) error {
+			return r.Channel.PublishWithContext(
+				publishCtx,
+				publishExchange,
+				publishRoutingKey,
+				false, // mandatory
+				false, // immediate
+				publishMsg,
+			)
 		},
 	)
 }
@@ -200,13 +211,11 @@ func (r *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) err
 		return err
 	}
 
-	ctx := context.Background()
-
 	go func() {
 		for msg := range msgs {
 			log.Printf("Received a message: %s", msg.Body)
 
-			if err := handler(ctx, msg); err != nil {
+			if err := tracing.TracedConsumer(msg, handler); err != nil {
 				log.Printf("ERROR: failed to handle the message: %v", err)
 				if err := msg.Nack(false, false); err != nil {
 					log.Printf("ERROR: failed to nack the message: %v", err)
