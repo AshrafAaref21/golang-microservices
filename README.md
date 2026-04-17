@@ -86,7 +86,7 @@ Architecture notes already live in:
 - Tailwind CSS
 - Leaflet and React Leaflet
 
-### Local infrastructure
+### Infrastructure
 
 - Tilt for local orchestration
 - Kubernetes manifests for development and production layouts
@@ -233,6 +233,79 @@ cd web && npm run dev
 
 Manual startup is possible, but you will need to provide all required environment variables yourself.
 
+## Production Infrastructure
+
+Production-ready artifacts now live under `infra/production/`.
+
+### Docker images
+
+Multi-stage Dockerfiles are available for all backend services:
+
+- `infra/production/docker/api-gateway.Dockerfile`
+- `infra/production/docker/trip-service.Dockerfile`
+- `infra/production/docker/driver-service.Dockerfile`
+- `infra/production/docker/payment-service.Dockerfile`
+
+Each image builds a static Go binary in a builder stage and runs it from a minimal Alpine runtime image.
+
+### Kubernetes manifests
+
+Production Kubernetes manifests are available in `infra/production/k8s/`:
+
+- `app-config.yaml`
+- `api-gateway-deployment.yaml`
+- `trip-service-deployment.yaml`
+- `driver-service-deployment.yaml`
+- `payment-service-deployment.yaml`
+- `rabbitmq-deployment.yaml`
+- `jaeger-deployment.yaml`
+
+Note: the API Gateway service currently reads `HTTP_ADDR` in code, while the production manifest sets `GATEWAY_HTTP_ADDR`. With the current setup, the gateway still binds to its default `:8081` unless `HTTP_ADDR` is explicitly provided.
+
+The service images are currently referenced as:
+
+- `europe-west1-docker.pkg.dev/{{PROJECT_ID}}/ride-sharing/api-gateway`
+- `europe-west1-docker.pkg.dev/{{PROJECT_ID}}/ride-sharing/trip-service`
+- `europe-west1-docker.pkg.dev/{{PROJECT_ID}}/ride-sharing/driver-service`
+- `europe-west1-docker.pkg.dev/{{PROJECT_ID}}/ride-sharing/payment-service`
+
+Replace `{{PROJECT_ID}}` before applying manifests.
+
+### Secrets required in production
+
+The production manifests expect these Kubernetes secrets:
+
+- `rabbitmq-credentials`
+	- `username`
+	- `password`
+	- `uri`
+- `stripe-secrets`
+	- `stripe-secret-key`
+	- `stripe-webhook-key`
+- `mongodb`
+	- `uri`
+- `external-apis`
+	- `osrm`
+
+### Suggested deployment order
+
+1. Apply config and secrets.
+2. Deploy infrastructure services (`rabbitmq`, `jaeger`).
+3. Deploy backend services (`trip-service`, `driver-service`, `payment-service`, `api-gateway`).
+4. Expose `api-gateway` through your ingress or load balancer.
+
+Example:
+
+```bash
+kubectl apply -f infra/production/k8s/app-config.yaml
+kubectl apply -f infra/production/k8s/rabbitmq-deployment.yaml
+kubectl apply -f infra/production/k8s/jaeger-deployment.yaml
+kubectl apply -f infra/production/k8s/trip-service-deployment.yaml
+kubectl apply -f infra/production/k8s/driver-service-deployment.yaml
+kubectl apply -f infra/production/k8s/payment-service-deployment.yaml
+kubectl apply -f infra/production/k8s/api-gateway-deployment.yaml
+```
+
 ## Environment Variables
 
 The most important runtime variables are:
@@ -250,6 +323,7 @@ The most important runtime variables are:
 | `STRIPE_WEBHOOK_KEY` | api-gateway | Stripe webhook signing secret |
 | `STRIPE_SUCCESS_URL` | payment-service | post-payment success redirect |
 | `STRIPE_CANCEL_URL` | payment-service | post-payment cancellation redirect |
+| `OSRM_API` | trip-service | OSRM endpoint/key secret value (production manifest) |
 | `NEXT_PUBLIC_API_URL` | web | public HTTP API base URL |
 | `NEXT_PUBLIC_WEBSOCKET_URL` | web | public WebSocket base URL |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | web | Stripe publishable key |
