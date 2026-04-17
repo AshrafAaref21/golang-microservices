@@ -12,7 +12,10 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-const TripExchange = "x.trip"
+const (
+	TripExchange       = "x.trip"
+	DeadLetterExchange = "x.dlx"
+)
 
 type RabbitMQ struct {
 	conn    *amqp.Connection
@@ -34,8 +37,55 @@ func NewRabbitMQ(url string) (*RabbitMQ, error) {
 	return &RabbitMQ{conn: conn, Channel: ch}, nil
 }
 
+func (r *RabbitMQ) setupDeadLetterExchange() error {
+	// Declare the dead letter exchange
+	err := r.Channel.ExchangeDeclare(
+		DeadLetterExchange,
+		"topic",
+		true,  // durable
+		false, // auto-deleted
+		false, // internal
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare dead letter exchange: %v", err)
+	}
+
+	// Declare the dead letter queue
+	q, err := r.Channel.QueueDeclare(
+		DeadLetterQueue,
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare dead letter queue: %v", err)
+	}
+
+	// Bind the queue to the exchange with a wildcard routing key
+	err = r.Channel.QueueBind(
+		q.Name,
+		"#", // wildcard routing key to catch all messages
+		DeadLetterExchange,
+		false,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to bind dead letter queue: %v", err)
+	}
+
+	return nil
+}
+
 func (r *RabbitMQ) SetupExchangesAndQueues() error {
-	// Example: Declare an exchange and a queue, and bind them
+
+	if err := r.setupDeadLetterExchange(); err != nil {
+		return fmt.Errorf("failed to declare dead letter exchange: %w", err)
+	}
+
 	err := r.Channel.ExchangeDeclare(
 		TripExchange, // name
 		"topic",      // type
@@ -133,13 +183,16 @@ func (r *RabbitMQ) SetupExchangesAndQueues() error {
 }
 
 func (r *RabbitMQ) declareAndBindQueue(queueName, exchangeName string, messageTypes []string) error {
+	args := amqp.Table{
+		"x-dead-letter-exchange": DeadLetterExchange,
+	}
 	_, err := r.Channel.QueueDeclare(
 		queueName, // name
 		true,      // durable
 		false,     // delete when unused
 		false,     // exclusive
 		false,     // no-wait
-		nil,       // arguments
+		args,      // arguments
 	)
 	if err != nil {
 		return fmt.Errorf("failed to declare queue: %w", err)

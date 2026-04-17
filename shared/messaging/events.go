@@ -14,6 +14,8 @@ const (
 	NotifyPaymentSessionCreatedQueue = "q.notify_payment_session_created"
 	PaymentTripResponseQueue         = "q.payment_trip_response"
 	NotifyPaymentSuccessQueue        = "q.notify_payment_success"
+
+	DeadLetterQueue = "q.dead_letter"
 )
 
 type TripEventData struct {
