@@ -10,6 +10,7 @@ import (
 	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
+	"ride-sharing/shared/db"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
 	"ride-sharing/shared/tracing"
@@ -33,12 +34,25 @@ func main() {
 		log.Fatalf("Failed to initialize the tracer: %v", err)
 	}
 
-	inmemoryRepo := repository.NewinMemoryRepository()
-	service := service.NewTripService(inmemoryRepo)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer shdw(ctx)
+
+	// Initialize MongoDB
+	mongoClient, err := db.NewMongoClient(ctx, db.NewMongoDefaultConfig())
+	if err != nil {
+		log.Fatalf("Failed to initialize MongoDB, err: %v", err)
+	}
+	defer mongoClient.Disconnect(ctx)
+
+	mongoDb := db.GetDatabase(mongoClient, db.NewMongoDefaultConfig())
+
+	// log.Printf(mongoDb.Name())
+
+	// inmemoryRepo := repository.NewinMemoryRepository()
+	// service := service.NewTripService(inmemoryRepo)
+	mongoDBRepo := repository.NewMongoRepository(mongoDb)
+	service := service.NewTripService(mongoDBRepo)
 
 	go func() {
 		signalChan := make(chan os.Signal, 1)
